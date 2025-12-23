@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { theme } from '../../constants/theme';
 import { Post } from '../../types';
 import { useContent } from '../../hooks/useContent';
+import { RichText } from './RichText';
 
 interface PostCardProps {
   post: Post;
@@ -59,7 +60,6 @@ export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
 
   return (
     <Pressable style={styles.container} onPress={onPress}>
-      {/* Header */}
       <TouchableOpacity style={styles.header} onPress={handleUserPress}>
         <Image
           source={{ uri: post.authorAvatar }}
@@ -84,10 +84,8 @@ export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
         </View>
       </TouchableOpacity>
 
-      {/* Content */}
-      <Text style={styles.content}>{post.content}</Text>
+      <RichText content={post.content} style={styles.content} />
 
-      {/* Media */}
       {post.mediaUrl && post.mediaType === 'image' && (
         <Image
           source={{ uri: post.mediaUrl }}
@@ -101,7 +99,6 @@ export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
         </View>
       )}
 
-      {/* Actions */}
       <View style={styles.actions}>
         <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
           <Ionicons

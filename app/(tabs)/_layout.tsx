@@ -1,9 +1,29 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet } from 'react-native';
 import { theme } from '../../constants/theme';
 import { Platform } from 'react-native';
+import { useAuth } from '../../hooks/useAuth';
+import { useNotifications } from '../../hooks/useNotifications';
+import { useMessaging } from '../../hooks/useMessaging';
+
+function Badge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
+    </View>
+  );
+}
 
 export default function TabsLayout() {
+  const { user } = useAuth();
+  const { getUserNotifications } = useNotifications();
+  const { getUnreadCount } = useMessaging();
+
+  const unreadNotifications = user ? getUserNotifications(user.id).filter(n => !n.isRead).length : 0;
+  const unreadMessages = user ? getUnreadCount(user.id) : 0;
+
   return (
     <Tabs
       screenOptions={{
@@ -52,23 +72,73 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Alerts',
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <Ionicons name="notifications" size={size} color={color} />
+              <Badge count={unreadNotifications} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <Ionicons name="chatbubbles" size={size} color={color} />
+              <Badge count={unreadMessages} />
+            </View>
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="music"
         options={{
-          title: 'Music',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="musical-notes" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="local"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="saved"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    right: -8,
+    top: -4,
+    backgroundColor: theme.colors.error,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 5,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+});

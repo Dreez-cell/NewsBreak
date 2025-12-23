@@ -2,6 +2,8 @@ export type CategoryType = 'all' | 'local' | 'trending' | 'crime' | 'politics' |
 
 export type MediaType = 'image' | 'video' | 'audio' | 'none';
 
+export type NotificationType = 'like' | 'comment' | 'follow' | 'mention' | 'repost' | 'message';
+
 export interface Article {
   id: string;
   title: string;
@@ -38,6 +40,8 @@ export interface Post {
   likedBy: string[];
   commentsList: Comment[];
   repostedBy: string[];
+  mentions: string[]; // Username mentions
+  hashtags: string[]; // Hashtags used
 }
 
 export interface Comment {
@@ -49,6 +53,7 @@ export interface Comment {
   content: string;
   createdAt: string;
   likes: number;
+  mentions: string[];
 }
 
 export interface User {
@@ -59,6 +64,7 @@ export interface User {
   avatar: string;
   bio: string;
   location: string;
+  username: string; // For @mentions
   followers: string[];
   following: string[];
   savedArticles: string[];
@@ -86,4 +92,40 @@ export interface UserProfile {
   savedArticles: string[];
   followedCategories: CategoryType[];
   notificationsEnabled: boolean;
+}
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  userId: string; // Recipient
+  fromUserId: string; // Actor
+  fromUserName: string;
+  fromUserAvatar: string;
+  content: string; // Notification message
+  relatedId?: string; // Post/Comment ID
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  participants: string[]; // User IDs
+  lastMessage?: Message;
+  updatedAt: string;
+}
+
+export interface HashtagStats {
+  tag: string;
+  count: number;
+  trending: boolean;
 }

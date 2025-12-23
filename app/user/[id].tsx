@@ -9,6 +9,7 @@ import { User } from '../../types';
 import { useUsers } from '../../hooks/useUsers';
 import { useAuth } from '../../hooks/useAuth';
 import { useContent } from '../../hooks/useContent';
+import { useNotifications } from '../../hooks/useNotifications';
 import { PostCard } from '../../components/ui/PostCard';
 
 export default function UserProfileScreen() {
@@ -32,6 +33,8 @@ export default function UserProfileScreen() {
     }
   };
 
+  const { createNotification } = useNotifications();
+
   const handleFollow = async () => {
     if (!currentUser || !profileUser) return;
 
@@ -39,8 +42,22 @@ export default function UserProfileScreen() {
       await unfollowUser(currentUser.id, profileUser.id);
     } else {
       await followUser(currentUser.id, profileUser.id);
+      await createNotification(
+        'follow',
+        profileUser.id,
+        currentUser.id,
+        currentUser.name,
+        currentUser.avatar,
+        `${currentUser.name} started following you`
+      );
     }
     setIsFollowing(!isFollowing);
+  };
+
+  const handleMessage = () => {
+    if (profileUser) {
+      router.push(`/chat/${profileUser.id}`);
+    }
   };
 
   if (!profileUser) {
@@ -89,20 +106,26 @@ export default function UserProfileScreen() {
             </View>
           </View>
 
-          {/* Follow Button */}
-          <TouchableOpacity
-            style={[styles.followButton, isFollowing && styles.followingButton]}
-            onPress={handleFollow}
-          >
-            <Ionicons
-              name={isFollowing ? 'checkmark' : 'person-add'}
-              size={20}
-              color={isFollowing ? theme.colors.text : theme.colors.background}
-            />
-            <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-              {isFollowing ? 'Following' : 'Follow'}
-            </Text>
-          </TouchableOpacity>
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.followButton, isFollowing && styles.followingButton]}
+              onPress={handleFollow}
+            >
+              <Ionicons
+                name={isFollowing ? 'checkmark' : 'person-add'}
+                size={20}
+                color={isFollowing ? theme.colors.text : theme.colors.background}
+              />
+              <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
+                {isFollowing ? 'Following' : 'Follow'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.messageButton} onPress={handleMessage}>
+              <Ionicons name="chatbubble" size={20} color={theme.colors.primary} />
+              <Text style={styles.messageButtonText}>Message</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Posts */}
@@ -197,14 +220,38 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 4,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    paddingHorizontal: 24,
+  },
   followButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    paddingHorizontal: 32,
     paddingVertical: 12,
     backgroundColor: theme.colors.primary,
     borderRadius: theme.borderRadius.md,
+  },
+  messageButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  messageButtonText: {
+    fontSize: theme.fonts.sizes.base,
+    fontWeight: theme.fonts.weights.semibold,
+    color: theme.colors.primary,
   },
   followingButton: {
     backgroundColor: theme.colors.surface,

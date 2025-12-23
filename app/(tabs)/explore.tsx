@@ -1,87 +1,94 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
-import { CategoryType } from '../../types';
 import { useContent } from '../../hooks/useContent';
 import { useAuth } from '../../hooks/useAuth';
 import { PostCard } from '../../components/ui/PostCard';
-import { CategoryChip } from '../../components/ui/CategoryChip';
-
-const categories: { label: string; value: CategoryType }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Local', value: 'local' },
-  { label: 'Trending', value: 'trending' },
-  { label: 'Crime', value: 'crime' },
-  { label: 'Politics', value: 'politics' },
-  { label: 'Business', value: 'business' },
-  { label: 'Weather', value: 'weather' },
-  { label: 'Entertainment', value: 'entertainment' },
-];
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
-  const { posts, refreshPosts } = useContent();
+  const router = useRouter();
+  const { posts, getTrendingHashtags } = useContent();
   const { user } = useAuth();
-  const [selectedCategory, setSelectedCategory] = useState<CategoryType>('all');
-  const [refreshing, setRefreshing] = useState(false);
+  const [selectedHashtag, setSelectedHashtag] = useState<string | null>(null);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refreshPosts();
-    setRefreshing(false);
-  };
-
-  const filteredPosts = selectedCategory === 'all' 
-    ? posts 
-    : posts.filter(p => p.category === selectedCategory);
+  const trendingHashtags = getTrendingHashtags();
+  const displayedPosts = selectedHashtag
+    ? posts.filter(p => p.hashtags.includes(selectedHashtag.toLowerCase()))
+    : posts.sort((a, b) => b.likes + b.comments + b.reposts - (a.likes + a.comments + a.reposts));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
         <Text style={styles.title}>Explore</Text>
-        <Text style={styles.subtitle}>Discover news by category</Text>
+        <TouchableOpacity>
+          <Ionicons name="search" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
       </View>
 
-      {/* Category Filter */}
-      <View style={styles.categoryContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoryScroll}
-        >
-          {categories.map((cat) => (
-            <CategoryChip
-              key={cat.value}
-              label={cat.label}
-              category={cat.value}
-              isSelected={selectedCategory === cat.value}
-              onPress={() => setSelectedCategory(cat.value)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      {/* Trending Hashtags */}
+      {trendingHashtags.length > 0 && (
+        <View style={styles.hashtagSection}>
+          <Text style={styles.sectionTitle}>Trending Hashtags</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hashtagScroll}
+          >
+            <TouchableOpacity
+              style={[styles.hashtagChip, !selectedHashtag && styles.hashtagChipActive]}
+              onPress={() => setSelectedHashtag(null)}
+            >
+              <Text style={[styles.hashtagText, !selectedHashtag && styles.hashtagTextActive]}>
+                All
+              </Text>
+            </TouchableOpacity>
+            {trendingHashtags.map((item) => (
+              <TouchableOpacity
+                key={item.tag}
+                style={[
+                  styles.hashtagChip,
+                  selectedHashtag === item.tag && styles.hashtagChipActive,
+                ]}
+                onPress={() => setSelectedHashtag(item.tag)}
+              >
+                <Text
+                  style={[
+                    styles.hashtagText,
+                    selectedHashtag === item.tag && styles.hashtagTextActive,
+                  ]}
+                >
+                  #{item.tag}
+                </Text>
+                <Text style={styles.hashtagCount}>{item.count}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Posts */}
       <FlatList
-        data={filteredPosts}
+        data={displayedPosts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <PostCard
             post={item}
             currentUserId={user?.id || ''}
+            onPress={() => router.push(`/article/${item.id}`)}
           />
         )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.primary}
-            colors={[theme.colors.primary]}
-          />
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="compass-outline" size={64} color={theme.colors.textTertiary} />
+            <Text style={styles.emptyText}>No posts found</Text>
+          </View>
         }
       />
     </SafeAreaView>
@@ -94,30 +101,74 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 16,
     backgroundColor: theme.colors.background,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: theme.fonts.weights.heavy,
-    color: theme.colors.text,
-  },
-  subtitle: {
-    fontSize: theme.fonts.sizes.sm,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  categoryContainer: {
-    backgroundColor: theme.colors.background,
-    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  categoryScroll: {
+  title: {
+    fontSize: 24,
+    fontWeight: theme.fonts.weights.heavy,
+    color: theme.colors.text,
+  },
+  hashtagSection: {
+    paddingVertical: 12,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+  },
+  sectionTitle: {
+    fontSize: theme.fonts.sizes.sm,
+    fontWeight: theme.fonts.weights.bold,
+    color: theme.colors.text,
     paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  hashtagScroll: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  hashtagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.round,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  hashtagChipActive: {
+    backgroundColor: theme.colors.trending,
+    borderColor: theme.colors.trending,
+  },
+  hashtagText: {
+    fontSize: theme.fonts.sizes.sm,
+    fontWeight: theme.fonts.weights.medium,
+    color: theme.colors.text,
+  },
+  hashtagTextActive: {
+    color: theme.colors.background,
+  },
+  hashtagCount: {
+    fontSize: theme.fonts.sizes.xs,
+    color: theme.colors.textTertiary,
   },
   list: {
     paddingVertical: 8,
+  },
+  emptyContainer: {
+    paddingVertical: 60,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: theme.fonts.sizes.base,
+    color: theme.colors.textSecondary,
+    marginTop: 16,
   },
 });

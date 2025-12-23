@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 import { useContent } from '../../hooks/useContent';
 import { useAuth } from '../../hooks/useAuth';
@@ -10,6 +11,7 @@ import { PostCard } from '../../components/ui/PostCard';
 export default function HashtagScreen() {
   const { tag } = useLocalSearchParams<{ tag: string }>();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { getPostsByHashtag } = useContent();
   const { user } = useAuth();
 
@@ -33,12 +35,14 @@ export default function HashtagScreen() {
           <PostCard
             post={item}
             currentUserId={user?.id || ''}
+            onPress={() => router.push(`/article/${item.id}`)}
           />
         )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
+            <Ionicons name="compass-outline" size={64} color={theme.colors.textTertiary} />
             <Text style={styles.emptyText}>No posts found with #{tag}</Text>
           </View>
         }

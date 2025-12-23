@@ -18,6 +18,12 @@ const STORAGE_KEYS = {
   USERS_DB: '@newsbreak_users_db',
 };
 
+function generateUsername(name: string): string {
+  const cleaned = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const random = Math.floor(Math.random() * 1000);
+  return `${cleaned}${random}`;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name,
         email,
         password,
+        username: generateUsername(name),
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E63946&color=fff&size=200`,
         bio: '',
         location: 'Los Angeles, CA',

@@ -3,24 +3,19 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Pl
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { theme } from '../../constants/theme';
-import { UserProfile } from '../../types';
-import { newsService } from '../../services/newsService';
+import { useAuth } from '../../hooks/useAuth';
+import { useContent } from '../../hooks/useContent';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const { posts } = useContent();
+  const [notificationsEnabled, setNotificationsEnabled] = useState(user?.notificationsEnabled || true);
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    const data = await newsService.getUserProfile();
-    setProfile(data);
-    setNotificationsEnabled(data.notificationsEnabled);
-  };
+  const userPosts = posts.filter(p => p.authorId === user?.id);
 
   const showMockAlert = (title: string, message: string) => {
     if (Platform.OS === 'web') {
@@ -43,7 +38,11 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    showMockAlert('Edit Profile', 'Profile editing will be available after Supabase connection');
+    router.push('/profile/edit');
+  };
+
+  const handleLogout = async () => {
+    await logout();
   };
 
   const handleAbout = () => {
@@ -53,15 +52,7 @@ export default function ProfileScreen() {
     );
   };
 
-  if (!profile) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading profile...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  if (!user) return null;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -74,16 +65,17 @@ export default function ProfileScreen() {
         {/* User Info */}
         <View style={styles.userCard}>
           <Image
-            source={{ uri: profile.avatar }}
+            source={{ uri: user.avatar }}
             style={styles.avatar}
             contentFit="cover"
           />
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{profile.name}</Text>
-            <Text style={styles.userEmail}>{profile.email}</Text>
+            <Text style={styles.userName}>{user.name}</Text>
+            <Text style={styles.userEmail}>{user.email}</Text>
+            {user.bio ? <Text style={styles.userBio}>{user.bio}</Text> : null}
             <View style={styles.locationRow}>
               <Ionicons name="location" size={14} color={theme.colors.local} />
-              <Text style={styles.userLocation}>{profile.location}</Text>
+              <Text style={styles.userLocation}>{user.location}</Text>
             </View>
           </View>
           <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
@@ -94,18 +86,18 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{profile.savedArticles.length}</Text>
-            <Text style={styles.statLabel}>Saved</Text>
+            <Text style={styles.statValue}>{userPosts.length}</Text>
+            <Text style={styles.statLabel}>Posts</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={styles.statValue}>{profile.followedCategories.length}</Text>
+            <Text style={styles.statValue}>{user.followers.length}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>{user.following.length}</Text>
             <Text style={styles.statLabel}>Following</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>24</Text>
-            <Text style={styles.statLabel}>Read Today</Text>
           </View>
         </View>
 
@@ -141,13 +133,20 @@ export default function ProfileScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="log-out" size={22} color={theme.colors.error} />
+              <Text style={[styles.settingText, { color: theme.colors.error }]}>Log Out</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Followed Categories */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Followed Categories</Text>
+          <Text style={styles.sectionTitle}>Interests</Text>
           <View style={styles.categoriesGrid}>
-            {profile.followedCategories.map((category) => (
+            {user.followedCategories.filter(c => c !== 'all').map((category) => (
               <View key={category} style={styles.categoryBadge}>
                 <Text style={styles.categoryText}>
                   {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -221,6 +220,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fonts.sizes.sm,
     color: theme.colors.textSecondary,
     marginBottom: 4,
+  },
+  userBio: {
+    fontSize: theme.fonts.sizes.sm,
+    color: theme.colors.text,
+    marginBottom: 6,
+    lineHeight: 18,
   },
   locationRow: {
     flexDirection: 'row',

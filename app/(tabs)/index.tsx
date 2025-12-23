@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,9 @@ import { theme } from '../../constants/theme';
 import { useContent } from '../../hooks/useContent';
 import { useAuth } from '../../hooks/useAuth';
 import { PostCard } from '../../components/ui/PostCard';
-import { SuggestedContent } from '../../components/ui/SuggestedContent';
+import { TrendingSection } from '../../components/ui/TrendingSection';
+import { CategoryFilter, NewsCategory } from '../../components/ui/CategoryFilter';
+import { BreakingNewsBanner } from '../../components/ui/BreakingNewsBanner';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -16,6 +18,40 @@ export default function HomeScreen() {
   const { posts, loading, refreshPosts } = useContent();
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<NewsCategory>('all');
+
+  // Filter posts by category
+  const filteredPosts = useMemo(() => {
+    if (selectedCategory === 'all') {
+      return posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    if (selectedCategory === 'breaking') {
+      // Show most recent posts with high engagement
+      return posts
+        .filter(p => {
+          const hoursSincePost = (Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60);
+          return hoursSincePost < 6 && (p.likes + p.comments + p.reposts) > 5;
+        })
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    if (selectedCategory === 'trending') {
+      // Sort by engagement
+      return posts
+        .sort((a, b) => {
+          const engagementA = a.likes + a.comments * 2 + a.reposts * 1.5;
+          const engagementB = b.likes + b.comments * 2 + b.reposts * 1.5;
+          return engagementB - engagementA;
+        });
+    }
+    return posts.filter(p => p.category === selectedCategory)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [posts, selectedCategory]);
+
+  // Check if there are breaking news
+  const breakingNews = posts.filter(p => {
+    const hoursSincePost = (Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60);
+    return hoursSincePost < 2 && (p.likes + p.comments + p.reposts) > 10;
+  });
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -33,20 +69,40 @@ export default function HomeScreen() {
       
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top }]}>
-        <Text style={styles.logo}>NewsBreak</Text>
+        <View style={styles.logoContainer}>
+          <Ionicons name="newspaper" size={28} color={theme.colors.primary} />
+          <Text style={styles.logo}>NewsBreak</Text>
+        </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={() => router.push('/(tabs)/explore')}
+          >
             <Ionicons name="search" size={24} color={theme.colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.iconButton}>
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text} />
+          <TouchableOpacity 
+            style={styles.iconButton}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <Ionicons name="person-circle-outline" size={26} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Category Filter */}
+      <CategoryFilter 
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+      />
+
+      {/* Breaking News Banner */}
+      {breakingNews.length > 0 && selectedCategory === 'all' && (
+        <BreakingNewsBanner news={breakingNews[0]} />
+      )}
+
       {/* Feed */}
       <FlatList
-        data={posts}
+        data={filteredPosts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <PostCard
@@ -57,7 +113,7 @@ export default function HomeScreen() {
         )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={<SuggestedContent />}
+        ListHeaderComponent={selectedCategory === 'all' ? <TrendingSection /> : null}
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyContainer}>
@@ -101,10 +157,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   logo: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: theme.fonts.weights.heavy,
-    color: theme.colors.primary,
+    color: theme.colors.text,
     letterSpacing: -0.5,
   },
   headerActions: {

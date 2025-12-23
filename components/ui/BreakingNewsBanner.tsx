@@ -1,86 +1,113 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
-import { Article } from '../../types';
+import { Post } from '../../types';
 
 interface BreakingNewsBannerProps {
-  articles: Article[];
-  onPress: (article: Article) => void;
+  news: Post;
 }
 
-export function BreakingNewsBanner({ articles, onPress }: BreakingNewsBannerProps) {
-  if (articles.length === 0) return null;
+export function BreakingNewsBanner({ news }: BreakingNewsBannerProps) {
+  const router = useRouter();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+
+    return () => pulse.stop();
+  }, []);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Ionicons name="flash" size={16} color={theme.colors.background} />
-        <Text style={styles.headerText}>BREAKING NEWS</Text>
+    <TouchableOpacity
+      style={styles.container}
+      onPress={() => router.push(`/article/${news.id}`)}
+      activeOpacity={0.9}
+    >
+      <View style={styles.content}>
+        <Animated.View style={[styles.badge, { transform: [{ scale: pulseAnim }] }]}>
+          <Ionicons name="flash" size={16} color="#fff" />
+          <Text style={styles.badgeText}>BREAKING</Text>
+        </Animated.View>
+        <Text style={styles.title} numberOfLines={2}>
+          {news.content}
+        </Text>
+        <Ionicons name="chevron-forward" size={20} color={theme.colors.background} />
       </View>
-      
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {articles.map((article) => (
-          <TouchableOpacity
-            key={article.id}
-            onPress={() => onPress(article)}
-            style={styles.newsItem}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.newsText} numberOfLines={2}>
-              {article.title}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.background} />
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
+      <View style={styles.timeContainer}>
+        <Ionicons name="time-outline" size={12} color="rgba(255, 255, 255, 0.8)" />
+        <Text style={styles.timeText}>Just now</Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: theme.colors.primary,
-    marginBottom: 12,
+    backgroundColor: theme.colors.error,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  header: {
+  content: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    padding: 16,
+    gap: 12,
   },
-  headerText: {
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.round,
+  },
+  badgeText: {
     fontSize: theme.fonts.sizes.xs,
     fontWeight: theme.fonts.weights.heavy,
-    color: theme.colors.background,
+    color: '#fff',
     letterSpacing: 1,
   },
-  scrollContent: {
+  title: {
+    flex: 1,
+    fontSize: theme.fonts.sizes.base,
+    fontWeight: theme.fonts.weights.bold,
+    color: theme.colors.background,
+    lineHeight: 20,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
-  newsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: theme.borderRadius.md,
-    marginRight: 8,
-    maxWidth: 280,
-  },
-  newsText: {
-    flex: 1,
-    fontSize: theme.fonts.sizes.sm,
-    fontWeight: theme.fonts.weights.semibold,
-    color: theme.colors.background,
-    marginRight: 8,
-    lineHeight: 18,
+  timeText: {
+    fontSize: theme.fonts.sizes.xs,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
 });

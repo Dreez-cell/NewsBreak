@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Pressable, Share, Platform, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -7,6 +7,7 @@ import { theme } from '../../constants/theme';
 import { Post } from '../../types';
 import { useContent } from '../../hooks/useContent';
 import { RichText } from './RichText';
+import * as Clipboard from 'expo-clipboard';
 
 interface PostCardProps {
   post: Post;
@@ -17,13 +18,40 @@ interface PostCardProps {
 export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
   const router = useRouter();
   const { toggleLike, repost } = useContent();
+  const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
+  const [reposting, setReposting] = useState(false);
 
   const handleLike = async () => {
     await toggleLike(post.id, currentUserId);
   };
 
   const handleRepost = async () => {
+    setReposting(true);
     await repost(post.id, currentUserId);
+    setTimeout(() => setReposting(false), 300);
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `newsbreak://post/${post.id}`;
+    const message = `${post.content.substring(0, 100)}${post.content.length > 100 ? '...' : ''}\n\nShared from NewsBreak`;
+
+    try {
+      if (Platform.OS === 'web') {
+        await Clipboard.setStringAsync(shareUrl);
+        Alert.alert('Link Copied', 'Post link copied to clipboard');
+      } else {
+        await Share.share({
+          message,
+          url: shareUrl,
+        });
+      }
+    } catch (error) {
+      console.log('Share error:', error);
+    }
+  };
+
+  const handleReply = () => {
+    router.push(`/article/${post.id}`);
   };
 
   const handleUserPress = () => {
@@ -89,8 +117,17 @@ export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
       {post.mediaUrl && post.mediaType === 'image' && (
         <Image
           source={{ uri: post.mediaUrl }}
-          style={styles.media}
+          style={[styles.media, { aspectRatio: imageAspectRatio }]}
           contentFit="cover"
+          onLoad={(e) => {
+            const { width, height } = e.source;
+            if (width && height) {
+              const ratio = width / height;
+              // Constrain aspect ratio between 0.75 (portrait) and 2 (wide)
+              const constrainedRatio = Math.max(0.75, Math.min(2, ratio));
+              setImageAspectRatio(constrainedRatio);
+            }
+          }}
         />
       )}
       {post.mediaUrl && post.mediaType === 'video' && (
@@ -100,23 +137,35 @@ export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+        <TouchableOpacity 
+          style={[styles.actionButton, isLiked && styles.actionButtonActive]}
+          onPress={handleLike}
+          activeOpacity={0.7}
+        >
           <Ionicons
             name={isLiked ? 'heart' : 'heart-outline'}
             size={22}
-            color={isLiked ? theme.colors.primary : theme.colors.textSecondary}
+            color={isLiked ? theme.colors.error : theme.colors.textSecondary}
           />
-          <Text style={[styles.actionText, isLiked && { color: theme.colors.primary }]}>
+          <Text style={[styles.actionText, isLiked && { color: theme.colors.error }]}>
             {formatNumber(post.likes)}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={handleReply}
+          activeOpacity={0.7}
+        >
           <Ionicons name="chatbubble-outline" size={20} color={theme.colors.textSecondary} />
           <Text style={styles.actionText}>{formatNumber(post.comments)}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleRepost}>
+        <TouchableOpacity 
+          style={[styles.actionButton, isReposted && styles.actionButtonActive, reposting && styles.actionButtonAnimating]}
+          onPress={handleRepost}
+          activeOpacity={0.7}
+        >
           <Ionicons
             name={isReposted ? 'repeat' : 'repeat-outline'}
             size={22}
@@ -127,8 +176,13 @@ export function PostCard({ post, currentUserId, onPress }: PostCardProps) {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={handleShare}
+          activeOpacity={0.7}
+        >
           <Ionicons name="share-outline" size={20} color={theme.colors.textSecondary} />
+          <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
       </View>
     </Pressable>
@@ -205,7 +259,8 @@ const styles = StyleSheet.create({
   },
   media: {
     width: '100%',
-    height: 200,
+    minHeight: 180,
+    maxHeight: 400,
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surfaceElevated,
     marginBottom: 12,
@@ -231,6 +286,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.sm,
+  },
+  actionButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  actionButtonAnimating: {
+    transform: [{ scale: 1.1 }],
   },
   actionText: {
     fontSize: theme.fonts.sizes.sm,

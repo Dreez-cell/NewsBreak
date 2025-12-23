@@ -26,15 +26,27 @@ export default function EditProfileScreen() {
   };
 
   const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        showAlert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
+        return;
+      }
 
-    if (!result.canceled && result.assets[0]) {
-      setAvatar(result.assets[0].uri);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      showAlert('Error', 'Failed to pick image. Please try again.');
     }
   };
 
@@ -70,15 +82,17 @@ export default function EditProfileScreen() {
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            <Image
-              source={{ uri: avatar }}
-              style={styles.avatar}
-              contentFit="cover"
-            />
-            <TouchableOpacity style={styles.changeAvatarButton} onPress={handlePickImage}>
-              <Ionicons name="camera" size={20} color={theme.colors.background} />
+            <TouchableOpacity onPress={handlePickImage} activeOpacity={0.8}>
+              <Image
+                source={{ uri: avatar }}
+                style={styles.avatar}
+                contentFit="cover"
+              />
+              <View style={styles.changeAvatarButton}>
+                <Ionicons name="camera" size={20} color={theme.colors.background} />
+              </View>
             </TouchableOpacity>
-            <Text style={styles.avatarHint}>Tap to change profile picture</Text>
+            <Text style={styles.avatarHint}>Tap photo to change picture</Text>
           </View>
 
           {/* Form */}
@@ -176,9 +190,8 @@ const styles = StyleSheet.create({
   },
   changeAvatarButton: {
     position: 'absolute',
-    bottom: 40,
-    right: '50%',
-    marginRight: -80,
+    bottom: 0,
+    right: 0,
     backgroundColor: theme.colors.primary,
     width: 40,
     height: 40,
@@ -187,6 +200,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: theme.colors.background,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
   avatarHint: {
     marginTop: 12,

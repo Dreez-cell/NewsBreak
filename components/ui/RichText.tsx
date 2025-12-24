@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, TextStyle, TouchableOpacity } from 'react-native';
+import { Text, TextStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { parseText, ParsedSegment } from '../../utils/textParser';
 import { theme } from '../../constants/theme';
@@ -31,21 +31,25 @@ export function RichText({ content, style }: RichTextProps) {
       {segments.map((segment, index) => {
         if (segment.type === 'mention') {
           return (
-            <TouchableOpacity key={index} onPress={() => handleMentionPress(segment.content.slice(1))}>
-              <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>
-                {segment.content}
-              </Text>
-            </TouchableOpacity>
+            <Text
+              key={index}
+              style={{ color: theme.colors.primary, fontWeight: '600' }}
+              onPress={() => handleMentionPress(segment.content.slice(1))}
+            >
+              {segment.content}
+            </Text>
           );
         }
 
         if (segment.type === 'hashtag') {
           return (
-            <TouchableOpacity key={index} onPress={() => handleHashtagPress(segment.content.slice(1))}>
-              <Text style={{ color: theme.colors.trending, fontWeight: '600' }}>
-                {segment.content}
-              </Text>
-            </TouchableOpacity>
+            <Text
+              key={index}
+              style={{ color: theme.colors.trending, fontWeight: '600' }}
+              onPress={() => handleHashtagPress(segment.content.slice(1))}
+            >
+              {segment.content}
+            </Text>
           );
         }
 

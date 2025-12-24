@@ -76,10 +76,12 @@ export function TrendingSection() {
                   <Text style={styles.userName} numberOfLines={1}>
                     {suggestedUser.name}
                   </Text>
-                  <Text style={styles.userLocation} numberOfLines={1}>
+                  <View style={styles.locationRow}>
                     <Ionicons name="location" size={12} color={theme.colors.local} />
-                    {' '}{suggestedUser.location}
-                  </Text>
+                    <Text style={styles.userLocation} numberOfLines={1}>
+                      {suggestedUser.location}
+                    </Text>
+                  </View>
                   <Text style={styles.userStats}>
                     {suggestedUser.followers.length} followers
                   </Text>
@@ -184,6 +186,11 @@ const styles = StyleSheet.create({
     fontSize: theme.fonts.sizes.base,
     fontWeight: theme.fonts.weights.semibold,
     color: theme.colors.text,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   userLocation: {
     fontSize: theme.fonts.sizes.xs,

@@ -1,9 +1,12 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
+import { supabase } from '../lib/supabase';
 import { User } from '../types';
+import { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -13,11 +16,6 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  USER: '@newsbreak_user',
-  USERS_DB: '@newsbreak_users_db',
-};
-
 function generateUsername(name: string): string {
   const cleaned = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   const random = Math.floor(Math.random() * 1000);
@@ -26,20 +24,83 @@ function generateUsername(name: string): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUser();
+    // Initialize session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        loadUserProfile(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // Listen to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        loadUserProfile(session.user.id);
+      } else {
+        setUser(null);
+      }
+    });
+
+    // Handle app state changes
+    const appStateListener = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      appStateListener.remove();
+    };
   }, []);
 
-  const loadUser = async () => {
+  const loadUserProfile = async (userId: string) => {
     try {
-      const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      if (userData) {
-        setUser(JSON.parse(userData));
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        // Get follower/following counts
+        const [{ count: followersCount }, { count: followingCount }] = await Promise.all([
+          supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
+          supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+        ]);
+
+        const userProfile: User = {
+          id: data.id,
+          name: data.name,
+          username: data.username,
+          email: data.email,
+          bio: data.bio || '',
+          location: data.location || '',
+          avatar: data.avatar,
+          followers: [], // Will be populated by UsersContext
+          following: [], // Will be populated by UsersContext
+          savedArticles: [],
+          followedCategories: ['all'],
+          notificationsEnabled: true,
+          createdAt: data.created_at,
+          password: '', // Not stored in client
+        };
+
+        setUser(userProfile);
       }
     } catch (error) {
-      console.error('Failed to load user:', error);
+      console.error('Failed to load user profile:', error);
     } finally {
       setLoading(false);
     }
@@ -47,64 +108,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const usersData = await AsyncStorage.getItem(STORAGE_KEYS.USERS_DB);
-      const users: User[] = usersData ? JSON.parse(usersData) : [];
-      
-      const foundUser = users.find(u => u.email === email && u.password === password);
-      
-      if (foundUser) {
-        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(foundUser));
-        setUser(foundUser);
-        return { success: true };
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
       }
-      
-      return { success: false, error: 'Invalid email or password' };
-    } catch (error) {
-      return { success: false, error: 'Login failed. Please try again.' };
+
+      if (data.user) {
+        await loadUserProfile(data.user.id);
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Login failed. Please try again.' };
     }
   };
 
   const signup = async (name: string, email: string, password: string) => {
     try {
-      const usersData = await AsyncStorage.getItem(STORAGE_KEYS.USERS_DB);
-      const users: User[] = usersData ? JSON.parse(usersData) : [];
-      
-      if (users.find(u => u.email === email)) {
-        return { success: false, error: 'Email already registered' };
-      }
+      const username = generateUsername(name);
+      const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
 
-      const newUser: User = {
-        id: `user_${Date.now()}`,
-        name,
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        username: generateUsername(name),
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=E63946&color=fff&size=200`,
-        bio: '',
-        location: 'Los Angeles, CA',
-        followers: [],
-        following: [],
-        savedArticles: [],
-        followedCategories: ['all'],
-        notificationsEnabled: true,
-        createdAt: new Date().toISOString(),
-      };
+        options: {
+          data: {
+            name,
+            username,
+            avatar,
+          },
+        },
+      });
 
-      users.push(newUser);
-      await AsyncStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(users));
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser));
-      setUser(newUser);
-      
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        // Profile is automatically created by trigger
+        await loadUserProfile(data.user.id);
+      }
+
       return { success: true };
-    } catch (error) {
-      return { success: false, error: 'Signup failed. Please try again.' };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Signup failed. Please try again.' };
     }
   };
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.USER);
+      await supabase.auth.signOut();
       setUser(null);
+      setSession(null);
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -114,27 +173,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     try {
-      const updatedUser = { ...user, ...updates };
-      
-      // Update in users database
-      const usersData = await AsyncStorage.getItem(STORAGE_KEYS.USERS_DB);
-      const users: User[] = usersData ? JSON.parse(usersData) : [];
-      const userIndex = users.findIndex(u => u.id === user.id);
-      
-      if (userIndex !== -1) {
-        users[userIndex] = updatedUser;
-        await AsyncStorage.setItem(STORAGE_KEYS.USERS_DB, JSON.stringify(users));
+      let avatarUrl = updates.avatar;
+
+      // Upload avatar if it is a local file URI
+      if (avatarUrl && avatarUrl.startsWith('file://')) {
+        const timestamp = Date.now();
+        const fileName = `${user.id}/${timestamp}_avatar.jpg`;
+
+        const response = await fetch(avatarUrl);
+        const blob = await response.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, arrayBuffer, {
+            contentType: 'image/jpeg',
+            upsert: true,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        avatarUrl = publicUrlData.publicUrl;
       }
-      
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          name: updates.name,
+          bio: updates.bio,
+          location: updates.location,
+          avatar: avatarUrl,
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      const updatedUser = { ...user, ...updates, avatar: avatarUrl || user.avatar };
       setUser(updatedUser);
     } catch (error) {
       console.error('Failed to update profile:', error);
+      throw error;
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, session, loading, login, signup, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
